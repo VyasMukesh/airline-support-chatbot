@@ -1,0 +1,47 @@
+{
+  "info": {
+    "name": "Airline Support Bot API",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef0123456789",
+    "description": "Collection for the demo Airline Support Bot",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Verify PNR",
+      "request": {
+        "method": "POST",
+        "header": [{"key":"Content-Type","value":"application/json"}],
+        "body": {"mode":"raw","raw":"{\n  \"pnr\": \"ABC123\"\n}"},
+        "url": {"raw":"http://127.0.0.1:8000/api/verify_pnr","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","verify_pnr"]}
+      }
+    },
+    {
+      "name": "List Bookings by PNR",
+      "request": {"method":"GET","url":{"raw":"http://127.0.0.1:8000/api/bookings?pnr=ABC123","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","bookings"],"query":[{"key":"pnr","value":"ABC123"}]}}
+    },
+    {
+      "name": "Book Ticket",
+      "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"pnr\": \"NEWPNR\",\n  \"flight_id\": 3333,\n  \"source_airport_code\": \"JFK\",\n  \"destination_airport_code\": \"LAX\",\n  \"scheduled_departure\": \"2025-12-01T10:00:00Z\",\n  \"scheduled_arrival\": \"2025-12-01T16:00:00Z\",\n  \"assigned_seat\": \"5A\"\n}"},"url":{"raw":"http://127.0.0.1:8000/api/book","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","book"]}}
+    },
+    {
+      "name": "Check Cancel Availability",
+      "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"booking_id\": 1\n}"},"url":{"raw":"http://127.0.0.1:8000/api/can_cancel","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","can_cancel"]}}
+    },
+    {
+      "name": "Perform Cancel",
+      "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"booking_id\": 1,\n  \"cancellation_charges\": 50.0,\n  \"refund_amount\": 200.0,\n  \"refund_date\": \"2025-10-27T12:00:00Z\"\n}"},"url":{"raw":"http://127.0.0.1:8000/api/flight/cancel","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","flight","cancel"]}}
+    },
+    {
+      "name": "Pet Allowed",
+      "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"booking_id\": 1\n}"},"url":{"raw":"http://127.0.0.1:8000/api/pet_allowed","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","pet_allowed"]}}
+    },
+    {
+      "name": "List Cancelled Bookings",
+      "request": {"method":"GET","url":{"raw":"http://127.0.0.1:8000/api/cancelled_bookings?pnr=ABC123","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["api","cancelled_bookings"],"query":[{"key":"pnr","value":"ABC123"}]}}
+    },
+    {
+      "name": "Process Message (bot)",
+      "request": {"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"message\": \"booked flights\"\n}"},"url":{"raw":"http://127.0.0.1:8000/process","protocol":"http","host":["127","0","0","1"],"port":"8000","path":["process"]}}
+    }
+  ]
+}

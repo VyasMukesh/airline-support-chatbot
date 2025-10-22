@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Airline Support Bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      /* Vibrant floating chat widget */
+      .chat-toggle {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 2000;
+      }
+      .chat-btn {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: linear-gradient(135deg,#0066ff,#00d4ff);
+        color: white;
+        border: none;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        font-size: 28px;
+      }
+      .chat-window {
+        position: fixed;
+        right: 24px;
+        bottom: 100px;
+        width: 360px;
+        max-height: 70vh;
+        z-index: 2000;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 30px rgba(2,6,23,0.4);
+        display: none;
+      }
+      .chat-header { background: linear-gradient(135deg,#0042b8,#00a8d4); color: #fff; padding: .75rem .9rem; }
+      .chat-body { background: #fff; height: 44vh; overflow-y: auto; padding: .75rem; }
+      .chat-input { padding: .5rem; background: #f7f9fb; }
+      .msg { margin-bottom: .5rem; }
+      .msg.user { text-align: right; }
+      .msg .bubble { display: inline-block; padding: .5rem .75rem; border-radius: .5rem; max-width: 80%; }
+      .msg.user .bubble { background: #00d4ff; color: #003049; }
+      .msg.bot .bubble { background: #f1f5f9; color: #0f172a; }
+      .pnr-prompt { padding: .5rem; }
+      .booking-list { padding: .5rem; }
+      .booking-item { border: 1px solid #eef2f7; border-radius: 8px; padding: .5rem; margin-bottom: .5rem; cursor: pointer; transition: all 0.2s; }
+      .booking-item:hover { background: #f8fafc; }
+      .booking-cancelled { 
+        border: 2px solid #dc3545 !important; 
+        background: #fff5f5 !important;
+        cursor: not-allowed !important;
+      }
+      .booking-cancelled:hover {
+        background: #ffe5e5 !important;
+      }
+    </style>
+  </head>
+  <body>
+
+    <div class="chat-toggle">
+      <button id="chatToggle" class="chat-btn" title="Need help?">💬</button>
+    </div>
+
+    <div id="chatWindow" class="chat-window card">
+      <div class="chat-header d-flex justify-content-between align-items-center">
+        <div>
+          <strong>Need help?</strong>
+          <div style="font-size:12px; opacity:.9">Airline Support Bot</div>
+        </div>
+        <div><button id="closeChat" class="btn btn-sm btn-light">✕</button></div>
+      </div>
+      <div id="chatBody" class="chat-body">
+        <div id="messages"></div>
+        <div id="pnrArea" class="pnr-prompt">
+          <div class="mb-2">Please enter your PNR to continue</div>
+          <div class="input-group">
+            <input id="pnrInput" class="form-control" placeholder="Enter PNR (e.g. ABC123)">
+            <button id="pnrVerify" class="btn btn-primary">Verify</button>
+          </div>
+          <div id="pnrFeedback" style="font-size:12px; color:#c026d3; margin-top:.5rem; display:none"></div>
+        </div>
+        <div id="bookingArea" class="booking-list" style="display:none"></div>
+      </div>
+      <div class="chat-input d-flex">
+        <input id="chatInput" class="form-control" placeholder="Ask about flight status, cancel, seats, pets..." disabled>
+        <button id="sendBtn" class="btn btn-primary ms-2" disabled>Send</button>
+      </div>
+    </div>
+
+    <script>
+      const chatToggle = document.getElementById('chatToggle');
+      const chatWindow = document.getElementById('chatWindow');
+      const closeChat = document.getElementById('closeChat');
+      const messagesEl = document.getElementById('messages');
+      const pnrArea = document.getElementById('pnrArea');
+      const pnrInput = document.getElementById('pnrInput');
+      const pnrVerify = document.getElementById('pnrVerify');
+      const pnrFeedback = document.getElementById('pnrFeedback');
+      const bookingArea = document.getElementById('bookingArea');
+      const chatInput = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('sendBtn');
+
+      let verified = false;
+      let selectedBookingId = null;
+      let selectedBookingData = null; // Store the full booking data
+
+      // Check if session already has verified PNR on page load
+      function checkSession(){
+        fetch('/api/check_session', {method:'GET'})
+          .then(r=>r.json()).then(data=>{
+            if(data.verified){
+              verified = true;
+              pnrInput.value = data.pnr || '';
+              pnrArea.style.display = 'none';
+              chatInput.disabled = false;
+              sendBtn.disabled = false;
+              addMessage('Welcome,Please Enter your question below.', 'bot');
+            }
+          }).catch(()=>{});
+      }
+
+      function showChat(){ chatWindow.style.display='block'; }
+      function hideChat(){ chatWindow.style.display='none'; }
+
+      chatToggle.addEventListener('click', ()=>{ showChat(); });
+      closeChat.addEventListener('click', ()=>{ hideChat(); });
+
+      function addMessage(text, who='bot'){
+        const d = document.createElement('div'); d.className = 'msg ' + who;
+        const b = document.createElement('div'); b.className='bubble'; b.innerText = text;
+        d.appendChild(b); messagesEl.appendChild(d); messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      function showBookings(list){
+        bookingArea.innerHTML=''; bookingArea.style.display='block';
+        list.forEach(b=>{
+          const div = document.createElement('div'); 
+          const isCancelled = b.current_status === 'Cancelled';
+          
+          // Apply red styling for cancelled bookings
+          div.className = isCancelled ? 'booking-item booking-cancelled' : 'booking-item';
+          
+          // Add CANCELLED badge for cancelled bookings
+          const badge = isCancelled ? '<span class="badge bg-danger ms-2">CANCELLED</span>' : '';
+          
+          div.innerHTML = `<div><strong>Flight ${b.flight_id}</strong>${badge} — ${b.source_airport_code} → ${b.destination_airport_code}</div><div>Seat: ${b.assigned_seat} • ${b.scheduled_departure}</div>`;
+          div.setAttribute('data-booking-id', b.id);
+          
+          // Only allow selection if NOT cancelled
+          if (!isCancelled) {
+            div.addEventListener('click', ()=>{
+              // mark selected visually
+              document.querySelectorAll('.booking-item:not(.booking-cancelled)').forEach(it=>it.style.boxShadow='none');
+              div.style.boxShadow = '0 0 0 2px rgba(0,123,255,0.15)';
+              selectedBookingId = b.id;
+              selectedBookingData = b; // Store the full booking data
+              // Send a message to backend to store this selection in session
+              fetch('/process', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message: 'select', booking_id: b.id})})
+                .then(r=>r.json()).then(data=>{
+                  addMessage(`Selected Flight ${b.flight_id}. All your future queries will be for this booking until it's cancelled.`, 'bot');
+                });
+            });
+          } else {
+            // Make cancelled bookings unclickable and show info
+            div.style.cursor = 'not-allowed';
+            div.style.opacity = '0.7';
+            div.addEventListener('click', ()=>{
+              addMessage('This booking has been cancelled and cannot be selected.', 'bot');
+            });
+          }
+          
+          bookingArea.appendChild(div);
+        });
+      }
+
+      function fetchBookings(){
+        fetch('/api/bookings?pnr=' + encodeURIComponent(pnrInput.value))
+          .then(r=>r.json()).then(list=>{
+            if(list && list.length) showBookings(list);
+          }).catch(()=>{});
+      }
+
+      pnrVerify.addEventListener('click', ()=>{
+        const pnr = pnrInput.value.trim();
+        if(!pnr) { pnrFeedback.style.display='block'; pnrFeedback.innerText='Please enter a PNR'; return; }
+        fetch('/api/verify_pnr', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pnr})})
+          .then(r=>r.json()).then(data=>{
+            if(data.exists){
+              verified=true; pnrFeedback.style.display='none'; pnrArea.style.display='none'; chatInput.disabled=false; sendBtn.disabled=false; addMessage('PNR verified. Please type your question in the chat box and press Send.');
+              // IMPORTANT: do NOT auto-list bookings here. The bot will list bookings only when you ask (e.g. "show my bookings").
+            } else {
+              pnrFeedback.style.display='block'; pnrFeedback.innerText='PNR not found in our records.';
+            }
+          }).catch(()=>{ pnrFeedback.style.display='block'; pnrFeedback.innerText='Error verifying PNR'; });
+      });
+
+      sendBtn.addEventListener('click', ()=>{
+        const txt = chatInput.value.trim(); if(!txt) return; addMessage(txt,'user'); chatInput.value='';
+        // Backend will use the booking selected in session - no need to send it
+        const payload = { message: txt };
+        fetch('/process', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)}).then(r=>r.json()).then(data=>{
+          // If the bot returns an explicit action to list bookings, render them here
+          if(data.action === 'list_bookings' && Array.isArray(data.bookings)){
+            addMessage(data.reply || 'Here are your bookings', 'bot');
+            showBookings(data.bookings);
+            return;
+          }
+          // Handle cancel confirmation
+          if(data.action === 'confirm_cancel' && data.booking_id){
+            addMessage(data.reply, 'bot');
+            const confirmDiv = document.createElement('div');
+            confirmDiv.className = 'msg bot';
+            confirmDiv.innerHTML = '<div class="bubble"><button class="btn btn-sm btn-danger me-2" id="confirmYes">Yes, Cancel</button><button class="btn btn-sm btn-secondary" id="confirmNo">No</button></div>';
+            messagesEl.appendChild(confirmDiv);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            document.getElementById('confirmYes').addEventListener('click', ()=>{
+              fetch('/api/flight/cancel', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({booking_id: data.booking_id})})
+                .then(r=>r.json()).then(result=>{
+                  addMessage('Your booking has been cancelled successfully. Refund will be processed.', 'bot');
+                  confirmDiv.remove();
+                  
+                  // Show the cancelled booking in RED using stored data
+                  if (selectedBookingData) {
+                    addMessage('Here is your cancelled booking:', 'bot');
+                    bookingArea.innerHTML=''; 
+                    bookingArea.style.display='block';
+                    
+                    const div = document.createElement('div');
+                    div.className = 'booking-item booking-cancelled';
+                    const badge = '<span class="badge bg-danger ms-2">CANCELLED</span>';
+                    div.innerHTML = `<div><strong>Flight ${selectedBookingData.flight_id}</strong>${badge} — ${selectedBookingData.source_airport_code} → ${selectedBookingData.destination_airport_code}</div><div>Seat: ${selectedBookingData.assigned_seat} • ${selectedBookingData.scheduled_departure}</div>`;
+                    div.style.cursor = 'not-allowed';
+                    div.style.opacity = '0.7';
+                    bookingArea.appendChild(div);
+                  }
+                  
+                  // Clear selection
+                  selectedBookingId = null;
+                  selectedBookingData = null;
+                });
+            });
+            document.getElementById('confirmNo').addEventListener('click', ()=>{
+              addMessage('Cancellation request cancelled.', 'bot');
+              confirmDiv.remove();
+            });
+            return;
+          }
+          addMessage(data.reply || 'Sorry', 'bot');
+          if(data.need_pnr){ pnrArea.style.display='block'; chatInput.disabled=true; sendBtn.disabled=true; }
+        }).catch(()=>{ addMessage('Sorry, I could not reach the server.', 'bot'); });
+      });
+      chatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') sendBtn.click(); });
+
+      // Check session on page load
+      checkSession();
+
+      // proactive notification (simple polling every 20s)
+      setInterval(()=>{
+        // fetch a lightweight endpoint or show prompt
+        if(!document.hasFocus()){
+          chatToggle.classList.add('pulse');
+        }
+      },20000);
+    </script>
+  </body>
+</html>
