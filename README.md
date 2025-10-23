@@ -366,14 +366,6 @@ pip install gunicorn
 gunicorn asapp.wsgi:application --bind 0.0.0.0:8000
 ```
 
-## 📝 License
-
-MIT License - feel free to use this project for learning or commercial purposes.
-
-## 👨‍💻 Author
-
-Created with ❤️ by [Your Name]
-
 ## 🙏 Acknowledgments
 
 - Django Framework
@@ -381,11 +373,6 @@ Created with ❤️ by [Your Name]
 - Sentence Transformers (Hugging Face)
 - Bootstrap 5
 
-## 📞 Support
-
-For issues or questions:
-- Open an issue on GitHub
-- Email: your.email@example.com
 
 ## 🔄 Changelog
 
@@ -400,4 +387,3 @@ For issues or questions:
 
 ---
 
-**⭐ If you find this project helpful, please star it on GitHub!**
